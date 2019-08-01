@@ -1,12 +1,9 @@
-use actix_web::{HttpRequest, HttpResponse};
-use futures::stream::once;
-use bytes::Bytes;
-use actix_http::body::Body;
+use actix_web::{HttpRequest, HttpResponse, Result};
+use actix_web::http::StatusCode;
 
-pub fn go(req: &HttpRequest) -> HttpResponse {
-    let body = once(Ok(Bytes::from_static(b"views/index")));
-
-    HttpResponse::Ok()
-        .content_type("application/json")
-        .body(Body::Streaming(Box::new(body)))
+#[get("/")]
+pub fn index(req: HttpRequest) -> Result<HttpResponse> {
+    Ok(HttpResponse::build(StatusCode::OK)
+        .content_type("text/html; charset=utf-8")
+        .body(include_str!("../../static/views/index.html")))
 }

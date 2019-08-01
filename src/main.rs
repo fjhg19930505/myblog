@@ -14,44 +14,7 @@ use bytes::Bytes;
 use futures::unsync::mpsc;
 use futures::{future::ok, Future, Stream};
 
-/// favicon handler
-fn js(req: HttpRequest, path: web::Path<(String, String)>) -> Result<fs::NamedFile> {
-    if path.0 != "" {
-        if path.1 != "" {
-            return Ok(fs::NamedFile::open(format!("static/js/{}/{}", path.0, path.1))?);
-        }
-    }
-    return Ok(fs::NamedFile::open(format!("static/js/{}", path.0))?);
-}
-
-fn img(req: HttpRequest, path: web::Path<(String, String)>) -> Result<fs::NamedFile> {
-    if path.0 != "" {
-        if path.1 != "" {
-            return Ok(fs::NamedFile::open(format!("static/img/{}/{}", path.0, path.1))?);
-        }
-    }
-    return Ok(fs::NamedFile::open(format!("static/img/{}", path.0))?);
-}
-
-fn css(req: HttpRequest, path: web::Path<(String,)>) -> Result<fs::NamedFile> {
-    Ok(fs::NamedFile::open(format!("static/css/{}", path.0))?)
-}
-
-fn fonts(req: HttpRequest, path: web::Path<(String,)>) -> Result<fs::NamedFile> {
-    Ok(fs::NamedFile::open(format!("static/fonts/{}", path.0))?)
-}
-
-#[get("/")]
-fn index(req: HttpRequest) -> Result<HttpResponse> {
-    Ok(HttpResponse::build(StatusCode::OK)
-        .content_type("text/html; charset=utf-8")
-        .body(include_str!("../static/views/index.html")))
-}
-
-/// 404 handler
-fn p404() -> Result<fs::NamedFile> {
-    Ok(fs::NamedFile::open("static/views/404.html")?.set_status_code(StatusCode::NOT_FOUND))
-}
+mod controls;
 
 fn main() -> io::Result<()> {
     env::set_var("RUST_LOG", "actix_web=debug");
@@ -65,17 +28,17 @@ fn main() -> io::Result<()> {
             // enable logger - always register actix-web Logger middleware last
             .wrap(middleware::Logger::default())
             // register simple route, handle all methods
-            .service(index)
+            .service(controls::index::index)
             // with path parameters
-            .service(web::resource("/js/{name}/{name2}").route(web::get().to(js)))
-            .service(web::resource("/img/{name}/{name2}").route(web::get().to(img)))
-            .service(web::resource("/css/{name}").route(web::get().to(css)))
-            .service(web::resource("/fonts/{name}").route(web::get().to(fonts)))
+            .service(web::resource("/js/{name1}").route(web::get().to(controls::common::js)))
+            .service(web::resource("/img/{name1}").route(web::get().to(controls::common::img)))
+            .service(web::resource("/css/{name}").route(web::get().to(controls::common::css)))
+            .service(web::resource("/fonts/{name}").route(web::get().to(controls::common::fonts)))
             // default
             .default_service(
                 // 404 for GET request
                 web::resource("")
-                    .route(web::get().to(p404))
+                    .route(web::get().to(controls::common::p404))
                     // all requests that are not `GET`
                     .route(
                         web::route()
@@ -84,7 +47,7 @@ fn main() -> io::Result<()> {
                     ),
             )
     })
-    .bind("127.0.0.1:8080")?
+    .bind("192.168.1.39:8080")?
     .start();
 
     println!("Starting http port :8080");
