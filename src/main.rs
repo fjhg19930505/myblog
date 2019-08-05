@@ -2,19 +2,13 @@
 extern crate actix_web;
 
 use std::{env, io};
-
-use actix_files as fs;
-use actix_session::{CookieSession, Session};
-use actix_web::http::{header, Method, StatusCode};
+use actix_session::{CookieSession};
 use actix_web::{
-    error, guard, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer,
-    Result,
+    guard, middleware, web, App, HttpResponse, HttpServer,
 };
-use bytes::Bytes;
-use futures::unsync::mpsc;
-use futures::{future::ok, Future, Stream};
 
 mod controls;
+mod admin;
 
 fn main() -> io::Result<()> {
     env::set_var("RUST_LOG", "actix_web=debug");
@@ -30,10 +24,15 @@ fn main() -> io::Result<()> {
             // register simple route, handle all methods
             .service(controls::index::index)
             // with path parameters
-            .service(web::resource("/js/{name1}").route(web::get().to(controls::common::js)))
-            .service(web::resource("/img/{name1}").route(web::get().to(controls::common::img)))
+            .service(web::resource("/js/{name1}").route(web::get().to(controls::common::js1)))
+            .service(web::resource("/js/{name1}/{name2}").route(web::get().to(controls::common::js2)))
+            .service(web::resource("/img/{name1}").route(web::get().to(controls::common::img1)))
+            .service(web::resource("/img/{name1}/{name2}").route(web::get().to(controls::common::img2)))
             .service(web::resource("/css/{name}").route(web::get().to(controls::common::css)))
             .service(web::resource("/fonts/{name}").route(web::get().to(controls::common::fonts)))
+
+            // 以下是管理员的路由
+            .service(admin::index::index)
             // default
             .default_service(
                 // 404 for GET request
@@ -47,7 +46,7 @@ fn main() -> io::Result<()> {
                     ),
             )
     })
-    .bind("192.168.1.39:8080")?
+    .bind("0.0.0.0:8080")?
     .start();
 
     println!("Starting http port :8080");
