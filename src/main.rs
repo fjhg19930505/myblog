@@ -1,20 +1,27 @@
 #[macro_use]
 extern crate actix_web;
+#[macro_use]
+extern crate diesel;
+#[macro_use]
+extern crate serde_derive;
 
-use std::{env, io};
+use actix_web::{guard, error, middleware, web, App, Error, HttpResponse, HttpServer};
 use actix_session::{CookieSession};
-use actix_web::{
-    guard, middleware, web, App, HttpResponse, HttpServer,
-};
+use diesel::prelude::*;
+use diesel::r2d2::{Pool, ConnectionManager};
+use futures::future::{err, Either};
+use futures::{Future, Stream};
+use std::{io, env};
 
 mod controls;
-mod admin;
 
 fn main() -> io::Result<()> {
     env::set_var("RUST_LOG", "actix_web=debug");
     env_logger::init();
     let sys = actix_rt::System::new("myblog");
 
+
+    // controls路由
     HttpServer::new(|| {
         App::new()
             // cookie session middleware
@@ -32,7 +39,7 @@ fn main() -> io::Result<()> {
             .service(web::resource("/fonts/{name}").route(web::get().to(controls::common::fonts)))
 
             // 以下是管理员的路由
-            .service(admin::index::index)
+            .service(controls::admin::index::index)
             // default
             .default_service(
                 // 404 for GET request
@@ -50,5 +57,48 @@ fn main() -> io::Result<()> {
     .start();
 
     println!("Starting http port :8080");
+
+    // models路由
+    let connspec = std::env::var("DATABASE_URL").expect("DATABASE_URL");
+    let manager = ConnectionManager::<SqliteConnection>::new(connspec);
+    let pool = Pool::builder()
+        .build(manager)
+        .expect("Failed to create pool.");
+
+    // Start http server
+    HttpServer::new(move || {
+        App::new()
+            .data(pool.clone())
+            // enable logger
+            .wrap(middleware::Logger::default())
+            // This can be called with:
+            // curl -S --header "Content-Type: application/json" --request POST --data '{"name":"xyz"}'  http://127.0.0.1:8080/add
+            // Use of the extractors makes some post conditions simpler such
+            // as size limit protections and built in json validation.
+            /*.service(
+                web::resource("/add2")
+                    .data(
+                        web::JsonConfig::default()
+                            .limit(4096) // <- limit size of the payload
+                            .error_handler(|err, _| {
+                                // <- create custom error response
+                                error::InternalError::from_response(
+                                    err,
+                                    HttpResponse::Conflict().finish(),
+                                )
+                                .into()
+                            }),
+                    )
+                    .route(web::post().to_async(add2)),
+            )*/
+            //  Manual parsing would allow custom error construction, use of
+            //  other parsers *beside* json (for example CBOR, protobuf, xml), and allows
+            //  an application to standardise on a single parser implementation.
+            .service(web::resource("/add").route(web::post().to_async(index_add)))
+            .service(web::resource("/add/{name}").route(web::get().to_async(add)))
+    })
+    .bind("127.0.0.1:8088")?
+    .start();
+    
     sys.run()
 }

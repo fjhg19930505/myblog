@@ -5,5 +5,5 @@ use actix_web::http::StatusCode;
 pub fn index(req: HttpRequest) -> Result<HttpResponse> {
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("text/html; charset=utf-8")
-        .body(include_str!("../../static/views/admin.html")))
+        .body(include_str!("../../../static/views/admin.html")))
 }
