@@ -14,6 +14,7 @@ use futures::{Future, Stream};
 use std::{io, env};
 
 mod controls;
+mod models;
 
 fn main() -> io::Result<()> {
     env::set_var("RUST_LOG", "actix_web=debug");
@@ -94,8 +95,8 @@ fn main() -> io::Result<()> {
             //  Manual parsing would allow custom error construction, use of
             //  other parsers *beside* json (for example CBOR, protobuf, xml), and allows
             //  an application to standardise on a single parser implementation.
-            .service(web::resource("/add").route(web::post().to_async(index_add)))
-            .service(web::resource("/add/{name}").route(web::get().to_async(add)))
+            .service(web::resource("/add").route(web::post().to_async(models::adminModel::index_add)))
+            .service(web::resource("/add/{name}").route(web::get().to_async(models::adminModel::add)))
     })
     .bind("127.0.0.1:8088")?
     .start();

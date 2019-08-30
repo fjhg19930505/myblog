@@ -1,29 +1,68 @@
-use actix_web::{HttpRequest, HttpResponse, web}
+use actix_web::{error, middleware, web, App, Error, HttpResponse, HttpServer};
+use bytes::BytesMut;
+use diesel::prelude::*;
+use diesel::r2d2::{self, ConnectionManager};
+use futures::future::{err, Either};
+use futures::{Future, Stream};
+
+mod schema;
+use schema::users;
+
+type Pool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
+
+#[derive(Serialize, Queryable)]
+pub struct User {
+    pub phone: i32,
+    pub name: String,
+    pub code: i32,
+    pub code_last_time: i64,
+}
+
+#[derive(Insertable)]
+#[table_name = "users"]
+pub struct NewUser<'a> {
+    pub phone: &'a i32,
+    pub name: &'a str,
+}
+
 
 /// Async request handler
-fn add(
-    name: web::Path<String>,
+pub fn add(
+    phone: i32,
+    name: String,
     pool: web::Data<Pool>,
 ) -> impl Future<Item = HttpResponse, Error = Error> {
     // run diesel blocking code
-    web::block(move || query(name.into_inner(), pool)).then(|res| match res {
+    web::block(move || query(phone, name, pool)).then(|res| match res {
         Ok(user) => Ok(HttpResponse::Ok().json(user)),
         Err(_) => Ok(HttpResponse::InternalServerError().into()),
     })
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct MyUser {
-    phone: i32,
-    name: String,
-    code: i32,
-    last_code_time : String,
+/// Diesel query
+fn query(
+    ph: i32,
+    nm: str,
+    pool: web::Data<Pool>,
+) -> Result<User, diesel::result::Error> {
+    use self::schema::users::dsl::*;
+
+    let new_user = NewUser {
+        phone: ph,
+        name: nm,
+    };
+    let conn: &SqliteConnection = &pool.get().unwrap();
+
+    diesel::insert_into(users).values(&new_user).execute(conn)?;
+
+    let mut items = users.filter(phone.eq(&ph)).load::<User>(conn)?;
+    Ok(items.pop().unwrap())
 }
 
 const MAX_SIZE: usize = 262_144; // max payload size is 256k
 
 /// This handler manually load request payload and parse json object
-fn index_add(
+pub fn index_add(
     pl: web::Payload,
     pool: web::Data<Pool>,
 ) -> impl Future<Item = HttpResponse, Error = Error> {
@@ -50,12 +89,12 @@ fn index_add(
         // as otheriwse it cannot understand it
         .and_then(move |body| {
             // body is loaded, now we can deserialize serde-json
-            let r_obj = serde_json::from_slice::<MyUser>(&body);
+            let r_obj = serde_json::from_slice::<User>(&body);
 
             // Send to the db for create
             match r_obj {
                 Ok(obj) => {
-                    Either::A(web::block(move || query(obj.name, pool)).then(|res| {
+                    Either::A(web::block(move || query(obj.phone, obj.name, pool)).then(|res| {
                         match res {
                             Ok(user) => Ok(HttpResponse::Ok().json(user)),
                             Err(_) => Ok(HttpResponse::InternalServerError().into()),
