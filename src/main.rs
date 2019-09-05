@@ -41,6 +41,9 @@ fn main() -> io::Result<()> {
 
             // 以下是管理员的路由
             .service(controls::admin::index::index)
+
+            // 以下是数据库相关的路由
+            .service(web::resource("admin/query/{phone}").route(web::get().to(models::admin_model::query)))
             // default
             .default_service(
                 // 404 for GET request
@@ -96,7 +99,7 @@ fn main() -> io::Result<()> {
             //  other parsers *beside* json (for example CBOR, protobuf, xml), and allows
             //  an application to standardise on a single parser implementation.
             .service(web::resource("/add").route(web::post().to_async(models::adminModel::index_add)))
-            .service(web::resource("/add/{name}").route(web::get().to_async(models::adminModel::add)))
+            .service(web::resource("/add/{phone}/{name}").route(web::get().to_async(models::adminModel::add)))
     })
     .bind("127.0.0.1:8088")?
     .start();

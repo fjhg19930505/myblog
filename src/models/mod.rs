@@ -1,1 +1,1 @@
-pub mod adminModel;
+pub mod admin_model;

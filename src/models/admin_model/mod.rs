@@ -8,9 +8,11 @@ use futures::{Future, Stream};
 mod schema;
 use schema::users;
 
+
 type Pool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
-#[derive(Serialize, Queryable)]
+#[derive(Serialize, Deserialize, Queryable, Insertable)]
+#[table_name = "users"]
 pub struct User {
     pub phone: i32,
     pub name: String,
@@ -18,8 +20,7 @@ pub struct User {
     pub code_last_time: i64,
 }
 
-#[derive(Insertable)]
-#[table_name = "users"]
+
 pub struct NewUser<'a> {
     pub phone: &'a i32,
     pub name: &'a str,
@@ -28,12 +29,12 @@ pub struct NewUser<'a> {
 
 /// Async request handler
 pub fn add(
-    phone: i32,
+    phone: String,
     name: String,
     pool: web::Data<Pool>,
 ) -> impl Future<Item = HttpResponse, Error = Error> {
     // run diesel blocking code
-    web::block(move || query(phone, name, pool)).then(|res| match res {
+    web::block(move || query(phone.parse().unwrap(), name, pool)).then(|res| match res {
         Ok(user) => Ok(HttpResponse::Ok().json(user)),
         Err(_) => Ok(HttpResponse::InternalServerError().into()),
     })
@@ -42,14 +43,14 @@ pub fn add(
 /// Diesel query
 fn query(
     ph: i32,
-    nm: str,
+    nm: String,
     pool: web::Data<Pool>,
 ) -> Result<User, diesel::result::Error> {
     use self::schema::users::dsl::*;
 
     let new_user = NewUser {
-        phone: ph,
-        name: nm,
+        phone: &ph,
+        name: nm.as_str(),
     };
     let conn: &SqliteConnection = &pool.get().unwrap();
 
@@ -61,8 +62,33 @@ fn query(
 
 const MAX_SIZE: usize = 262_144; // max payload size is 256k
 
+pub fn verify_code(
+    ph: i32,
+    cd: i32,
+) -> Result {
+    use self::schema::users::dsl::*;
+    
+    let new_user = User{
+        phone: phone,
+        code: cd,
+        name: "",
+        last_code_time: 0,
+    }
+    let conn: &SqliteConnction = &pool.get().unwrap();
+
+    diesel::insert_into(users).values(&new_user).execute(conn)?;
+    let mut items = users.filter(phone.eq(&ph)).load::<User>(conn)?;
+    if items.pop().unwrap() == NULL {
+        return 
+    }
+    let mut items = users.filter(phone.eq(&ph)).filter(code.eq(&cd)).load::<User>(conn)?;
+    match items {
+        Some(_) => 
+    }
+}
+
 /// This handler manually load request payload and parse json object
-pub fn index_add(
+/*pub fn index_add(
     pl: web::Payload,
     pool: web::Data<Pool>,
 ) -> impl Future<Item = HttpResponse, Error = Error> {
@@ -104,4 +130,4 @@ pub fn index_add(
                 Err(_) => Either::B(err(error::ErrorBadRequest("Json Decode Failed"))),
             }
         })
-}
+}*/
