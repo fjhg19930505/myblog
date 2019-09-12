@@ -15,6 +15,7 @@ use std::{io, env};
 
 mod controls;
 mod models;
+mod common;
 
 fn main() -> io::Result<()> {
     env::set_var("RUST_LOG", "actix_web=debug");
@@ -43,7 +44,7 @@ fn main() -> io::Result<()> {
             .service(controls::admin::index::index)
 
             // 以下是数据库相关的路由
-            .service(web::resource("admin/query/{phone}").route(web::get().to(models::admin_model::query)))
+            .service(web::resource("/verify/{phone}/{code}").route(web::post().to_async(models::admin_model::verify_code)))
             // default
             .default_service(
                 // 404 for GET request
@@ -63,7 +64,7 @@ fn main() -> io::Result<()> {
     println!("Starting http port :8080");
 
     // models路由
-    let connspec = std::env::var("DATABASE_URL").expect("DATABASE_URL");
+    /*let connspec = std::env::var("DATABASE_URL").expect("DATABASE_URL");
     let manager = ConnectionManager::<SqliteConnection>::new(connspec);
     let pool = Pool::builder()
         .build(manager)
@@ -79,7 +80,7 @@ fn main() -> io::Result<()> {
             // curl -S --header "Content-Type: application/json" --request POST --data '{"name":"xyz"}'  http://127.0.0.1:8080/add
             // Use of the extractors makes some post conditions simpler such
             // as size limit protections and built in json validation.
-            /*.service(
+            .service(
                 web::resource("/add2")
                     .data(
                         web::JsonConfig::default()
@@ -94,15 +95,15 @@ fn main() -> io::Result<()> {
                             }),
                     )
                     .route(web::post().to_async(add2)),
-            )*/
+            )
             //  Manual parsing would allow custom error construction, use of
             //  other parsers *beside* json (for example CBOR, protobuf, xml), and allows
             //  an application to standardise on a single parser implementation.
-            .service(web::resource("/add").route(web::post().to_async(models::adminModel::index_add)))
-            .service(web::resource("/add/{phone}/{name}").route(web::get().to_async(models::adminModel::add)))
+            //.service(web::resource("/verify/{phone}/{code}").route(web::post().to_async(controls::admin::index::verify)))
+            //.service(web::resource("/add/{phone}/{name}").route(web::get().to_async(models::admin_model::add)))
     })
-    .bind("127.0.0.1:8088")?
-    .start();
+    //.bind("127.0.0.1:8088")?
+    //.start();*/
     
     sys.run()
 }

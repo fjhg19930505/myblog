@@ -7,7 +7,7 @@ use futures::{Future, Stream};
 
 mod schema;
 use schema::users;
-
+use crate::common::define;
 
 type Pool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
@@ -26,36 +26,14 @@ pub struct NewUser<'a> {
     pub name: &'a str,
 }
 
-
-/// Async request handler
-pub fn add(
-    phone: String,
-    name: String,
-    pool: web::Data<Pool>,
-) -> impl Future<Item = HttpResponse, Error = Error> {
-    // run diesel blocking code
-    web::block(move || query(phone.parse().unwrap(), name, pool)).then(|res| match res {
-        Ok(user) => Ok(HttpResponse::Ok().json(user)),
-        Err(_) => Ok(HttpResponse::InternalServerError().into()),
-    })
-}
-
 /// Diesel query
 fn query(
     ph: i32,
-    nm: String,
     pool: web::Data<Pool>,
 ) -> Result<User, diesel::result::Error> {
     use self::schema::users::dsl::*;
 
-    let new_user = NewUser {
-        phone: &ph,
-        name: nm.as_str(),
-    };
-    let conn: &SqliteConnection = &pool.get().unwrap();
-
-    diesel::insert_into(users).values(&new_user).execute(conn)?;
-
+    let conn = &pool.get().unwrap();
     let mut items = users.filter(phone.eq(&ph)).load::<User>(conn)?;
     Ok(items.pop().unwrap())
 }
@@ -63,31 +41,24 @@ fn query(
 const MAX_SIZE: usize = 262_144; // max payload size is 256k
 
 pub fn verify_code(
-    ph: i32,
-    cd: i32,
-) -> Result {
-    use self::schema::users::dsl::*;
-    
-    let new_user = User{
-        phone: phone,
-        code: cd,
-        name: "",
-        last_code_time: 0,
-    }
-    let conn: &SqliteConnction = &pool.get().unwrap();
-
-    diesel::insert_into(users).values(&new_user).execute(conn)?;
-    let mut items = users.filter(phone.eq(&ph)).load::<User>(conn)?;
-    if items.pop().unwrap() == NULL {
-        return 
-    }
-    let mut items = users.filter(phone.eq(&ph)).filter(code.eq(&cd)).load::<User>(conn)?;
-    match items {
-        Some(_) => 
-    }
+    item: web::Json<User>,
+    pool: web::Data<Pool>,
+) -> impl Future<Item = HttpResponse, Error = Error> {
+    web::block(move || query(item.into_inner().phone, pool)).then(|res| match res {
+        Ok(user) => {
+            if item.into_inner().code == user.code {
+                Ok(HttpResponse::Ok().json(user))
+            } else {
+                Err(error::ErrorBadRequest("code is wrong!"))
+            }
+        },
+        Err(_) =>  {
+            Err(error::ErrorBadRequest("phone is wrong!"))
+        }
+    })
 }
 
-/// This handler manually load request payload and parse json object
+//This handler manually load request payload and parse json object
 /*pub fn index_add(
     pl: web::Payload,
     pool: web::Data<Pool>,
